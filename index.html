@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Tweet Suggestions</title>
+</head>
+<body>
+    <h1>Daily Tweet Suggestions</h1>
+    <div id="suggestions">
+        <!-- Tweet suggestions will be loaded here -->
+    </div>
+    <button id="publish-selected">Publish Selected Tweets</button>
+
+    <script>
+        async function fetchSuggestions() {
+            const response = await fetch('tweets.json');
+            const data = await response.json();
+            const suggestionsDiv = document.getElementById('suggestions');
+            suggestionsDiv.innerHTML = ''; // Clear previous suggestions
+
+            data.tweets.forEach((tweet, index) => {
+                const tweetDiv = document.createElement('div');
+                tweetDiv.innerHTML = `
+                    <input type="checkbox" id="tweet-${index}" value="${tweet}">
+                    <label for="tweet-${index}">${tweet}</label><br>
+                `;
+                suggestionsDiv.appendChild(tweetDiv);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', fetchSuggestions);
+
+        document.getElementById('publish-selected').addEventListener('click', () => {
+            const selectedTweets = Array.from(document.querySelectorAll('input[type="checkbox"]:checked'))
+                .map(checkbox => checkbox.value);
+
+            // In a real application, you'd send these selectedTweets to your backend.
+            // For this simple setup, we'll just log them (you'll manually trigger the publishing Action).
+            console.log('Selected Tweets to Publish:', selectedTweets);
+            alert('Selected tweets logged to console. Now manually trigger the "Publish Tweets" Action.');
+        });
+    </script>
+</body>
+</html>
