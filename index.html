@@ -6,6 +6,7 @@
     <title>Tweet Manager</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/oauth-1.0a/2.2.6/oauth-1.0a.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8 max-w-4xl">
@@ -17,23 +18,23 @@
             <form id="apiForm" class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Gemini API Key</label>
-                    <input type="password" id="geminiKey" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    <input type="password" id="geminiKey" class="mt-1 block w-full rounded-md border border-gray-300 p-2">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Twitter API Key</label>
-                    <input type="text" id="twitterKey" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    <input type="text" id="twitterKey" class="mt-1 block w-full rounded-md border border-gray-300 p-2">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Twitter API Secret</label>
-                    <input type="password" id="twitterSecret" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    <input type="password" id="twitterSecret" class="mt-1 block w-full rounded-md border border-gray-300 p-2">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Twitter Access Token</label>
-                    <input type="text" id="accessToken" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    <input type="text" id="accessToken" class="mt-1 block w-full rounded-md border border-gray-300 p-2">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Twitter Access Token Secret</label>
-                    <input type="password" id="accessSecret" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    <input type="password" id="accessSecret" class="mt-1 block w-full rounded-md border border-gray-300 p-2">
                 </div>
                 <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Save Keys</button>
             </form>
@@ -45,12 +46,12 @@
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Topics (comma-separated)</label>
-                    <input type="text" id="topics" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                    <input type="text" id="topics" class="mt-1 block w-full rounded-md border border-gray-300 p-2" 
                            placeholder="tech, AI, programming">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Tweet Style</label>
-                    <select id="style" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    <select id="style" class="mt-1 block w-full rounded-md border border-gray-300 p-2">
                         <option value="professional">Professional</option>
                         <option value="casual">Casual</option>
                         <option value="humorous">Humorous</option>
@@ -117,20 +118,30 @@
                     body: JSON.stringify({
                         contents: [{
                             parts: [{
-                                text: `Generate 5 unique tweet ideas about ${topics}. Style: ${style}. 
+                                text: `Generate 20 unique tweet ideas about ${topics}. Style: ${style}. 
+                                      Each tweet must be in lowercase only.
                                       Each tweet should be engaging and under 280 characters.
-                                      Format: Return only the tweets, one per line.`
+                                      Make them specific and detailed, not generic.
+                                      Format: Return only the tweets, one per line.
+                                      Add relevant hashtags in lowercase.`
                             }]
                         }]
                     })
                 });
 
                 const data = await response.json();
-                const tweets = data.candidates[0].content.parts[0].text.split('\n')
-                    .filter(tweet => tweet.trim());
-                displayTweets(tweets);
+                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                    const tweets = data.candidates[0].content.parts[0].text
+                        .split('\n')
+                        .filter(tweet => tweet.trim())
+                        .map(tweet => tweet.toLowerCase());
+                    displayTweets(tweets);
+                } else {
+                    throw new Error('Invalid response from Gemini API');
+                }
             } catch (error) {
                 alert('Error generating tweets: ' + error.message);
+                console.error('Full error:', error);
             }
         }
 
@@ -147,7 +158,7 @@
                     <div class="flex space-x-2">
                         <button onclick="postTweet('${encodeURIComponent(tweet)}')" 
                                 class="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600">
-                            Post to Twitter
+                            Post to X
                         </button>
                         <button onclick="this.parentElement.parentElement.remove()" 
                                 class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600">
@@ -159,49 +170,58 @@
             });
         }
 
-        // Post tweet to Twitter
+        // Post tweet to Twitter/X
         async function postTweet(tweetText) {
             const keys = JSON.parse(localStorage.getItem('apiKeys') || '{}');
             if (!keys.twitter) {
-                alert('Please save your Twitter API keys first!');
+                alert('Please save your Twitter/X API keys first!');
                 return;
             }
 
-            const oauth = OAuth({
-                consumer: {
-                    key: keys.twitter.key,
-                    secret: keys.twitter.secret
-                },
-                signature_method: 'HMAC-SHA1',
-                hash_function: (baseString, key) => CryptoJS.HmacSHA1(baseString, key).toString(CryptoJS.enc.Base64)
-            });
-
-            const request_data = {
-                url: 'https://api.twitter.com/2/tweets',
-                method: 'POST',
-                data: { text: decodeURIComponent(tweetText) }
-            };
-
             try {
-                const response = await fetch(request_data.url, {
-                    method: request_data.method,
+                const oauth = new OAuth({
+                    consumer: {
+                        key: keys.twitter.key,
+                        secret: keys.twitter.secret
+                    },
+                    signature_method: 'HMAC-SHA1',
+                    hash_function: (baseString, key) => CryptoJS.HmacSHA1(baseString, key).toString(CryptoJS.enc.Base64)
+                });
+
+                const request_data = {
+                    url: 'https://api.twitter.com/2/tweets',
+                    method: 'POST'
+                };
+
+                const token = {
+                    key: keys.twitter.token,
+                    secret: keys.twitter.tokenSecret
+                };
+
+                const headers = oauth.toHeader(oauth.authorize(request_data, token));
+
+                const response = await fetch('https://api.twitter.com/2/tweets', {
+                    method: 'POST',
                     headers: {
-                        'Authorization': oauth.toHeader(oauth.authorize(request_data, {
-                            key: keys.twitter.token,
-                            secret: keys.twitter.tokenSecret
-                        }))['Authorization'],
+                        'Authorization': headers['Authorization'],
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(request_data.data)
+                    body: JSON.stringify({
+                        text: decodeURIComponent(tweetText)
+                    })
                 });
+
+                const data = await response.json();
+                console.log('Twitter API response:', data);
 
                 if (response.ok) {
                     alert('Tweet posted successfully!');
                 } else {
-                    throw new Error('Failed to post tweet');
+                    throw new Error(`Failed to post tweet: ${data.detail || 'Unknown error'}`);
                 }
             } catch (error) {
                 alert('Error posting tweet: ' + error.message);
+                console.error('Full error:', error);
             }
         }
     </script>
